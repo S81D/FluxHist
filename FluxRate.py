@@ -1,3 +1,7 @@
+# ANNIE flux histograms, produced using gsimple files
+# Author: Steven Doran
+# based on James Minock's scripts
+
 print('\nLoading...\n'); 
 import os          
 import numpy as np
