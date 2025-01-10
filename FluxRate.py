@@ -15,7 +15,6 @@ from matplotlib.ticker import (MultipleLocator, AutoMinorLocator)
 plot_name = 'ANNIE BNB flux _ 10.png'
 
 gsimple_directory = '/pnfs/annie/persistent/flux/annie_gsimple/gsimple_may2006_baseline_root/'
-#gsimple_directory = "gsimple_flux/"
 file_names = []
 for file_name in os.listdir(gsimple_directory):
     file_names.append(gsimple_directory + file_name)
@@ -27,8 +26,8 @@ nu_mu_energy = [[], []]; nu_mu_bar_energy = [[], []]
 
 tank_radius = 1.524  # [m]
 tank_height = 1.98   # [m]
-p_c = [0, -0.1446, 1.681]  # center position for simulated geometry [m]
-surface_area = (2*tank_radius*2*tank_height)  # [m], 2*radius * height (tank_height is only half height so we must multiply by 2)
+p_c = [0, -0.1446, 1.681]                              # center position for simulated geometry [m]
+surface_area = (2*tank_radius*2*tank_height)           # [m], 2*radius * height (tank_height is only half height so we must multiply by 2)
 
 # ----------------------------------------------------- #
 
@@ -53,7 +52,7 @@ def HitDetector(x,y,z,px,py,pz):
 
     z_c = p_c[2]
     
-    if pz <= 0.:        # if neutrino is going the opposite way (upstream), it'll never hit the tank
+    if pz <= 0.:                     # if neutrino is going the opposite way (upstream), it'll never hit the tank
         return False
     
     # create unit vectors for direction
@@ -76,7 +75,7 @@ def HitDetector(x,y,z,px,py,pz):
         z = z + uz*step
         x = x + ux*step
         y = y + uy*step
-        if inDetector(x, y, z):    # if during propagation the neutrino passes through the detector volume
+        if inDetector(x, y, z):      # if during propagation the neutrino passes through the detector volume
             return True
     return False
 
@@ -139,12 +138,14 @@ counts_nu_mu_bar, _ = np.histogram(nu_mu_bar_energy[0], bins=binning)
 counts_nu_e, _ = np.histogram(nu_e_energy[0], bins=binning)
 counts_nu_e_bar, _ = np.histogram(nu_e_bar_energy[0], bins=binning)
 
-#'''
+#''' 
+# ANNIE default (same as SBND)
 # for units of 10^12 POT per cm^2
 surface_area = surface_area * 10000    # convert from m^2 to cm^2
 scaling_factor = 1 * (1e12) / total_POT / surface_area      # v / 50MeV / 10^12 POT / cm^2
 #'''
 
+# Other units
 #scaling_factor = 1 * (1e6) / total_POT / surface_area       # v / 50MeV / 10^6 POT / m^2
 
 counts_nu_mu = counts_nu_mu * scaling_factor
@@ -165,13 +166,13 @@ plt.hist(binning[:-1], binning, weights = counts_nu_e_bar, histtype = 'step', li
 plt.yscale('log')
 plt.xlabel('Energy (GeV)', loc = 'right')
 #plt.ylabel(r'$\Phi (\nu)$' + ' / 50MeV / m' + r'$^2$' + ' / 10' + r'$^6$' + ' POT')
-plt.ylabel(r'$\Phi (\nu)$' + ' / 50MeV / cm' + r'$^2$' + ' / 10' + r'$^{12}$' + ' POT')
-plt.legend(fontsize = 11, frameon = False, loc = 'upper right')
+plt.ylabel(r'$\Phi (\nu)$' + ' / 50MeV / cm' + r'$^2$' + ' / 10' + r'$^{12}$' + ' POT')   # ANNIE default
+plt.legend(fontsize = 11, frameon = False, loc = 'upper right')     # legend text may be too big depending on xlim
 plt.xlim(0, 5)
 ax = plt.gca()
 ax.tick_params(axis='x', which = 'both', direction= 'in', top = True)
 ax.tick_params(axis='y', which = 'both', direction= 'in', right = True)
-ax.xaxis.set_major_locator(MultipleLocator(1))   # 0.5 for 3 GeV scale
+ax.xaxis.set_major_locator(MultipleLocator(1))   # 0.5 for 3 GeV xlim
 ax.xaxis.set_minor_locator(MultipleLocator(0.1))
 ax.text(0.6, 0.9, 'ANNIE Preliminary', transform=ax.transAxes, fontsize=9, color='grey', ha='center')
 plt.tight_layout()
