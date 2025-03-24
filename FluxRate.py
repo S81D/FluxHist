@@ -16,24 +16,35 @@ from matplotlib.ticker import (MultipleLocator, AutoMinorLocator)
 
 # ----------------------------------------------------- #
 
-plot_name = 'ANNIE BNB flux _ 10.png'
+plot_name = 'ANNIE BNB flux.png'
+
+rootfile_name = 'ANNIE_FLUX.root'
+
+TEST_RUN = False    # will only run over 20 gsimple files (used for fast debugging and testing)
 
 gsimple_directory = '/pnfs/annie/persistent/flux/annie_gsimple/gsimple_may2006_baseline_root/'
-file_names = []
-for file_name in os.listdir(gsimple_directory):
-    file_names.append(gsimple_directory + file_name)
+file_names = [os.path.join(gsimple_directory, f) for f in os.listdir(gsimple_directory)]
 
 # ----------------------------------------------------- #
 
-nu_e_energy = [[], []]; nu_e_bar_energy = [[], []]     # energy, weight
-nu_mu_energy = [[], []]; nu_mu_bar_energy = [[], []]
+# detector parameters
+# ---- full detector ----
+#tank_radius = 1.524  # [m]
+#tank_height = 1.98   # [m]
+# -------- FV -----------
+tank_radius = 1.0  # [m]
+tank_height = 1.4   # [m]
+p_c = np.array([0, -0.1446, 1.681])  # center position for simulated geometry [m]
+surface_area = (2 * tank_radius * 2 * tank_height) * 1e4  # cyclinder cross section = rectangle, convert to cm^2
 
-tank_radius = 1.524  # [m]
-tank_height = 1.98   # [m]
-p_c = [0, -0.1446, 1.681]                              # center position for simulated geometry [m]
-surface_area = (2*tank_radius*2*tank_height)           # [m], 2*radius * height (tank_height is only half height so we must multiply by 2)
+print(f'\nFV selected: {tank_radius}m radius, {tank_height}m half-height\n')
 
 # ----------------------------------------------------- #
+
+nu_e_energy = []
+nu_e_bar_energy = []
+nu_mu_energy = []
+nu_mu_bar_energy = []
 
 # determine if the neutrino has entered the detector volume
 def inDetector(x,y,z):
@@ -96,7 +107,7 @@ for file in range(len(file_names)):
         flux = root_file["flux/entry"]
         E = flux["E"].array(library="np")            # neutrino energy [GeV]
         PDG = flux["pdg"].array(library="np")        # particle ID: 12/-12: nu e / nu e bar, 14/-14: nu mu / nu mu bar
-        wgt = flux["wgt"].array(library="np")        # corresponding neutrino weight (default = 1.0)
+        wgt = flux["wgt"].array(library="np")        # corresponding neutrino weight (all gsimple files have weights stripped = 1.0)
         vtxx = flux["vtxx"].array(library="np")      # neutrino ray origin [m]
         vtxy = flux["vtxy"].array(library="np")
         vtxz = flux["vtxz"].array(library="np")
@@ -112,8 +123,6 @@ for file in range(len(file_names)):
             if PDG[i] != 12 and PDG[i] != -12 and PDG[i] != 14 and PDG[i] != -14:
                 print('NU TAU DETECTED!!!!!!!!!')    # we don't expect any of these
                 continue
-            if wgt[i] != 1.0:
-                print('Non 1.0 weight found!!!!')    # This assumption is critical for calculating the normalization. Has been tested for ~50 files and they're all 1.0
             else:
                 total_count += 1
                 if not HitDetector(vtxx[i],vtxy[i],vtxz[i],px[i],py[i],pz[i]):
@@ -121,13 +130,13 @@ for file in range(len(file_names)):
                 else:
                     passed += 1
                     if PDG[i] == 12:      # nu e
-                        nu_e_energy[0].append(E[i])
+                        nu_e_energy.append(E[i])
                     elif PDG[i] == -12:   # nu e bar
-                        nu_e_bar_energy[0].append(E[i])
+                        nu_e_bar_energy.append(E[i])
                     elif PDG[i] == 14:    # nu mu
-                        nu_mu_energy[0].append(E[i])
+                        nu_mu_energy.append(E[i])
                     elif PDG[i] == -14:   # nu mu bar
-                        nu_mu_bar_energy[0].append(E[i])
+                        nu_mu_bar_energy.append(E[i])
 
 
 # ----------------------------------------------------- #
@@ -135,27 +144,34 @@ for file in range(len(file_names)):
 plt.figure(figsize=(5, 4))
 bin_size = .05   # GeV --> corresponds to the 50 MeV bins we want
 binning = np.arange(0,5+bin_size+bin_size,bin_size)   # extend it slightly so we don't see the end of the line plot
+bin_centers = (binning[:-1] + binning[1:]) / 2
 
-# apply proper units
-counts_nu_mu, _ = np.histogram(nu_mu_energy[0], bins=binning)
-counts_nu_mu_bar, _ = np.histogram(nu_mu_bar_energy[0], bins=binning)
-counts_nu_e, _ = np.histogram(nu_e_energy[0], bins=binning)
-counts_nu_e_bar, _ = np.histogram(nu_e_bar_energy[0], bins=binning)
+# raw counts before applying units
+counts_nu_mu, _ = np.histogram(nu_mu_energy, bins=binning)
+counts_nu_mu_bar, _ = np.histogram(nu_mu_bar_energy, bins=binning)
+counts_nu_e, _ = np.histogram(nu_e_energy, bins=binning)
+counts_nu_e_bar, _ = np.histogram(nu_e_bar_energy, bins=binning)
 
-#''' 
-# ANNIE default (same as SBND)
-# for units of 10^12 POT per cm^2
-surface_area = surface_area * 10000    # convert from m^2 to cm^2
-scaling_factor = 1 * (1e12) / total_POT / surface_area      # v / 50MeV / 10^12 POT / cm^2
-#'''
+# errors
+errors_nu_mu = np.sqrt(counts_nu_mu)
+errors_nu_mu_bar = np.sqrt(counts_nu_mu_bar)
+errors_nu_e = np.sqrt(counts_nu_e)
+errors_nu_e_bar = np.sqrt(counts_nu_e_bar)
 
-# Other units
-#scaling_factor = 1 * (1e6) / total_POT / surface_area       # v / 50MeV / 10^6 POT / m^2
+# proper unit conversion
+scaling_factor = 1 * (1e6) / total_POT / surface_area       # v / 50MeV / 10^6 POT / cm^2
 
+# scale counts for appropriate units
 counts_nu_mu = counts_nu_mu * scaling_factor
 counts_nu_mu_bar = counts_nu_mu_bar * scaling_factor
 counts_nu_e = counts_nu_e * scaling_factor
 counts_nu_e_bar = counts_nu_e_bar * scaling_factor
+
+# also need to scale the errors
+errors_nu_mu = errors_nu_mu * scaling_factor
+errors_nu_mu_bar = errors_nu_mu_bar * scaling_factor
+errors_nu_e = errors_nu_e * scaling_factor
+errors_nu_e_bar = errors_nu_e_bar * scaling_factor
 
 
 plt.hist(binning[:-1], binning, weights = counts_nu_mu, histtype = 'step',
@@ -167,12 +183,21 @@ plt.hist(binning[:-1], binning, weights = counts_nu_e, histtype = 'step', linest
 plt.hist(binning[:-1], binning, weights = counts_nu_e_bar, histtype = 'step', linestyle='--',
     label= r'$\bar{\nu}_{e}$', color = 'blue', linewidth = 1)
 
+# error bands
+plt.fill_between(bin_centers, counts_nu_mu - errors_nu_mu, counts_nu_mu + errors_nu_mu,
+                 color='red', alpha=0.4, step='mid')
+plt.fill_between(bin_centers, counts_nu_mu_bar - errors_nu_mu_bar, counts_nu_mu_bar + errors_nu_mu_bar,
+                 color='blue', alpha=0.4, step='mid')
+plt.fill_between(bin_centers, counts_nu_e - errors_nu_e, counts_nu_e + errors_nu_e,
+                 color='red', alpha=0.2, step='mid')
+plt.fill_between(bin_centers, counts_nu_e_bar - errors_nu_e_bar, counts_nu_e_bar + errors_nu_e_bar,
+                 color='blue', alpha=0.2, step='mid')
+
 plt.yscale('log')
 plt.xlabel('Energy (GeV)', loc = 'right')
-#plt.ylabel(r'$\Phi (\nu)$' + ' / 50MeV / m' + r'$^2$' + ' / 10' + r'$^6$' + ' POT')
-plt.ylabel(r'$\Phi (\nu)$' + ' / 50MeV / cm' + r'$^2$' + ' / 10' + r'$^{12}$' + ' POT')   # ANNIE default
+plt.ylabel(r'$\Phi (\nu)$' + ' / 50MeV / cm' + r'$^2$' + ' / 10' + r'$^6$' + ' POT')
 plt.legend(fontsize = 11, frameon = False, loc = 'upper right')     # legend text may be too big depending on xlim
-plt.xlim(0, 5)
+plt.xlim(0, 5)   # adjust if you want to extend the energy to beyond 5 GeV
 ax = plt.gca()
 ax.tick_params(axis='x', which = 'both', direction= 'in', top = True)
 ax.tick_params(axis='y', which = 'both', direction= 'in', right = True)
@@ -185,18 +210,28 @@ plt.close()
 
 # ----------------------------------------------------- #
 
+# output flux to ROOT
+print(root_file)
+with uproot.recreate(rootfile_name) as file:
+    file["numu_cv"] = (counts_nu_mu, binning)
+    file["numubar_cv"] = (counts_nu_mu_bar, binning)
+    file["nue_cv"] = (counts_nu_e, binning)
+    file["nuebar_cv"] = (counts_nu_e_bar, binning)
+
+# ----------------------------------------------------- #
+
 print('\n')
 print('****************************************')
 print(total_count, 'total neutrinos produced')
-print(passed, 'neutrinos that hit the detector (', round(100*passed/total_count,3), '% )')
+print(passed, 'neutrinos that hit the FV (', round(100*passed/total_count,3), '% )')
 print(round(total_POT/(1e6),4), 'e6 POT')
 print('\n')
 print('Flux breakdown')
 print('-------------------------------------')
-print('muon neutrino:         ', str(round(100*len(nu_mu_energy[0])/passed,2)), '%')
-print('muon antineutrino:     ', str(round(100*len(nu_mu_bar_energy[0])/passed,2)), '%')
-print('electron neutrino:     ', str(round(100*len(nu_e_energy[0])/passed,2)), '%')
-print('electron antineutrino: ', str(round(100*len(nu_e_bar_energy[0])/passed,2)), '%')
+print('muon neutrino:         ', str(round(100*len(nu_mu_energy)/passed,2)), '%')
+print('muon antineutrino:     ', str(round(100*len(nu_mu_bar_energy)/passed,2)), '%')
+print('electron neutrino:     ', str(round(100*len(nu_e_energy)/passed,2)), '%')
+print('electron antineutrino: ', str(round(100*len(nu_e_bar_energy)/passed,2)), '%')
 print('****************************************')
 
 print('\n\ndone\n')
