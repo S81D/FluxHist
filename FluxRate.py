@@ -14,30 +14,62 @@ mpl.rcParams['mathtext.fontset'] = 'cm' # Set the math font to Computer Modern
 mpl.rcParams['legend.fontsize'] = 1
 from matplotlib.ticker import (MultipleLocator, AutoMinorLocator)
 
+# ***************************************************** #
+# # # # # # # # # # # Configuration # # # # # # # # # # #
 # ----------------------------------------------------- #
 
 plot_name = 'ANNIE BNB flux.png'
 
-rootfile_name = 'ANNIE_FLUX.root'
+
+generate_rootfile = True           # generate root file with neutrino fluxes (if False, just plot)
+rootfile_name = 'ANNIE_FLUX.root'  # will contain neutrino fluxes for the 4 relevant flavors
+
+
+Full_Volume = True  # will use the entire ANNIE detector for the flux calculation (radius = 1.524m, half-height = 1.98m)
+
+                    # If Full_Volume = False, specify FV (centered at (0,0,0), geometry assumed to be cylindrical)
+FV_radius = 1       # radius [m]
+FV_half_z = 1.5     # half-height [m]
+
 
 TEST_RUN = False    # will only run over 20 gsimple files (used for fast debugging and testing)
+
+
+# Histogram details
+bin_size = 0.05        # [GeV] -> default = 0.05, corresponds to the 50 MeV bins we want for comparison to GENIE XS spline files
+upper_hist_limit = 10  # largest bin [GeV] -> default = 10, corresponds to maximum value in the GENIE XS spline files
+
+# currently, default in code for flux units set to (keep commented, won't work up here):
+# scaling_factor = 1 / total_POT / surface_area    # proper unit conversion for flux
+                                                   # default: v / 50MeV / POT / cm^2
+# this can be changed in the script (you'll also want to change the label below to reflect the correct units)
+hist_y_label = r'$\Phi (\nu)$' + ' / 50MeV / cm' + r'$^2$' + ' / POT'   # default: r'$\Phi (\nu)$' + ' / 50MeV / cm' + r'$^2$' + ' / POT'
+
+upper_plot_limit = 5   # upper energy limit displayed in plot image (default = 5)
+
 
 gsimple_directory = '/pnfs/annie/persistent/flux/annie_gsimple/gsimple_may2006_baseline_root/'
 file_names = [os.path.join(gsimple_directory, f) for f in os.listdir(gsimple_directory)]
 
 # ----------------------------------------------------- #
+# ***************************************************** #
+
 
 # detector parameters
 # ---- full detector ----
-#tank_radius = 1.524  # [m]
-#tank_height = 1.98   # [m]
+if Full_Volume:
+    tank_radius = 1.524  # [m]
+    tank_height = 1.98   # [m] (half-height)
+
 # -------- FV -----------
-tank_radius = 1.0  # [m]
-tank_height = 1.4   # [m]
+else:
+    tank_radius = FV_radius
+    tank_height = FV_half_z
+    
 p_c = np.array([0, -0.1446, 1.681])  # center position for simulated geometry [m]
 surface_area = (2 * tank_radius * 2 * tank_height) * 1e4  # cyclinder cross section = rectangle, convert to cm^2
 
-print(f'\nFV selected: {tank_radius}m radius, {tank_height}m half-height\n')
+print(f'\nVolume selected: {tank_radius}m radius, {tank_height}m half-height\n')
 
 # ----------------------------------------------------- #
 
@@ -53,9 +85,10 @@ def inDetector(x,y,z):
     y_c = p_c[1]
     x_c = p_c[0]
 
-    y_min = y_c - tank_height
+    y_min = y_c - tank_height    # if FV not centered at (0,0,0), you can modify these lines for y
     y_max = y_c + tank_height
 
+                                 # and this line for z / x
     if (y_min < y < y_max) and (np.sqrt( (z - z_c)**2 + (x - x_c)**2 ) < tank_radius):
         return True
     else:
@@ -84,7 +117,7 @@ def HitDetector(x,y,z,px,py,pz):
     z = z_front
     
     # iterate until middle of tank (cylinder = it won't enter if it didnt already pass through the front half) or return true if in tank
-    N_steps = 50
+    N_steps = 50      # somewhat arbitrary but more steps doesn't seem to make a signficiant difference
     step = z_c/(N_steps*uz)
     while z <= z_c:
         z = z + uz*step
@@ -101,6 +134,10 @@ for file in range(len(file_names)):
 
     print(count, '/', len(file_names), '  (', round(100*count/len(file_names),2), '% )')
     count += 1
+
+    if TEST_RUN == True:
+        if count > 10:
+            continue
 
     with uproot.open(file_names[file]) as root_file:
         
@@ -139,11 +176,25 @@ for file in range(len(file_names)):
                         nu_mu_bar_energy.append(E[i])
 
 
+# calculate flux mean and median by flavor (and totals)
+avg_nu_mu = round(1000*np.average(nu_mu_energy),2)      # x1000 to get from GeV -> MeV
+med_nu_mu = round(1000*np.median(nu_mu_energy),2)
+avg_nu_e = round(1000*np.average(nu_e_energy),2)
+med_nu_e = round(1000*np.median(nu_e_energy),2)
+avg_nu_mu_bar = round(1000*np.average(nu_mu_bar_energy),2)
+med_nu_mu_bar = round(1000*np.median(nu_mu_bar_energy),2)
+avg_nu_e_bar = round(1000*np.average(nu_e_bar_energy),2)
+med_nu_e_bar = round(1000*np.median(nu_e_bar_energy),2)
+
+nu_avg_energy = round(1000*np.average(nu_mu_energy + nu_e_energy),2)
+nu_med_energy = round(1000*np.median(nu_mu_energy + nu_e_energy),2)
+nu_bar_avg_energy = round(1000*np.average(nu_mu_bar_energy + nu_e_bar_energy),2)
+nu_bar_med_energy = round(1000*np.median(nu_mu_bar_energy + nu_e_bar_energy),2)
+
 # ----------------------------------------------------- #
 
 plt.figure(figsize=(5, 4))
-bin_size = .05   # GeV --> corresponds to the 50 MeV bins we want
-binning = np.arange(0,5+bin_size+bin_size,bin_size)   # extend it slightly so we don't see the end of the line plot
+binning = np.arange(0,upper_hist_limit+bin_size,bin_size)
 bin_centers = (binning[:-1] + binning[1:]) / 2
 
 # raw counts before applying units
@@ -158,8 +209,8 @@ errors_nu_mu_bar = np.sqrt(counts_nu_mu_bar)
 errors_nu_e = np.sqrt(counts_nu_e)
 errors_nu_e_bar = np.sqrt(counts_nu_e_bar)
 
-# proper unit conversion
-scaling_factor = 1 * (1e6) / total_POT / surface_area       # v / 50MeV / 10^6 POT / cm^2
+# unit conversion (* CHANGE IF NEEDED *)
+scaling_factor = 1 / total_POT / surface_area        # v / 50 MeV / POT / cm^2
 
 # scale counts for appropriate units
 counts_nu_mu = counts_nu_mu * scaling_factor
@@ -195,9 +246,9 @@ plt.fill_between(bin_centers, counts_nu_e_bar - errors_nu_e_bar, counts_nu_e_bar
 
 plt.yscale('log')
 plt.xlabel('Energy (GeV)', loc = 'right')
-plt.ylabel(r'$\Phi (\nu)$' + ' / 50MeV / cm' + r'$^2$' + ' / 10' + r'$^6$' + ' POT')
+plt.ylabel(hist_y_label)  # see configurations
 plt.legend(fontsize = 11, frameon = False, loc = 'upper right')     # legend text may be too big depending on xlim
-plt.xlim(0, 5)   # adjust if you want to extend the energy to beyond 5 GeV
+plt.xlim(0, upper_plot_limit)   # adjust if you want in configuration
 ax = plt.gca()
 ax.tick_params(axis='x', which = 'both', direction= 'in', top = True)
 ax.tick_params(axis='y', which = 'both', direction= 'in', right = True)
@@ -227,11 +278,13 @@ print(passed, 'neutrinos that hit the FV (', round(100*passed/total_count,3), '%
 print(round(total_POT/(1e6),4), 'e6 POT')
 print('\n')
 print('Flux breakdown')
-print('-------------------------------------')
-print('muon neutrino:         ', str(round(100*len(nu_mu_energy)/passed,2)), '%')
-print('muon antineutrino:     ', str(round(100*len(nu_mu_bar_energy)/passed,2)), '%')
-print('electron neutrino:     ', str(round(100*len(nu_e_energy)/passed,2)), '%')
-print('electron antineutrino: ', str(round(100*len(nu_e_bar_energy)/passed,2)), '%')
-print('****************************************')
+print('----------------------------------------------------------------------')
+print('muon neutrino:         ', str(round(100*len(nu_mu_energy)/passed,2)), '%, <E> =', avg_nu_mu, 'MeV, E_med =', med_nu_mu, 'MeV')
+print('muon antineutrino:     ', str(round(100*len(nu_mu_bar_energy)/passed,2)), '%,  <E> =', avg_nu_mu_bar, 'MeV, E_med =', med_nu_mu_bar, 'MeV')
+print('electron neutrino:     ', str(round(100*len(nu_e_energy)/passed,2)), '%,  <E> =', avg_nu_e, 'MeV, E_med =', med_nu_e, 'MeV')
+print('electron antineutrino: ', str(round(100*len(nu_e_bar_energy)/passed,2)), '%,  <E> =', avg_nu_e_bar, 'MeV, E_med =', med_nu_e_bar, 'MeV')
+print('**********************************************************************')
+print('Neutrino Avg Energy      =', nu_avg_energy, 'MeV,  Median Energy = ', nu_med_energy, 'MeV')
+print('Anti-Neutrino Avg Energy =', nu_bar_avg_energy, 'MeV,  Median Energy = ', nu_bar_med_energy, 'MeV')
 
 print('\n\ndone\n')
