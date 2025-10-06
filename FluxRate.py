@@ -5,6 +5,7 @@
 print('\nLoading...\n'); 
 import os          
 import numpy as np
+import pandas as pd
 import uproot
 import matplotlib.pyplot as plt
 import matplotlib as mpl
@@ -24,24 +25,27 @@ plot_name = 'ANNIE BNB flux.png'
 generate_rootfile = True           # generate root file with neutrino fluxes (if False, just plot)
 rootfile_name = 'ANNIE_FLUX.root'  # will contain neutrino fluxes for the 4 relevant flavors
 
+generate_summary_txt = True        # generate a summary txt with flux statistics
+txt_name = 'flux_summary.txt'      # will contain fluence per flavor, avg and median energy, etc...
 
-Full_Volume = True  # will use the entire ANNIE detector for the flux calculation (radius = 1.524m, half-height = 1.98m)
+Full_Volume = True                 # will use the entire ANNIE detector for the flux calculation (radius = 1.524m, half-height = 1.98m)
 
-                    # If Full_Volume = False, specify FV (centered at (0,0,0), geometry assumed to be cylindrical)
-FV_radius = 1       # radius [m]
-FV_half_z = 1.5     # half-height [m]
+                                   # If Full_Volume = False, specify FV (centered at (0,0,0), geometry assumed to be cylindrical)
+FV_radius = 1                      # radius [m]
+FV_half_z = 1.5                    # half-height [m]
 
 
-TEST_RUN = False    # will only run over 20 gsimple files (used for fast debugging and testing)
+TEST_RUN = False                   # will only run over 20 gsimple files (used for fast debugging and testing)
 
 
 # Histogram details
-bin_size = 0.05        # [GeV] -> default = 0.05, corresponds to the 50 MeV bins we want for comparison to GENIE XS spline files
-upper_hist_limit = 10  # largest bin [GeV] -> default = 10, corresponds to maximum value in the GENIE XS spline files
+bin_size = 0.05                    # [GeV] -> default = 0.05, corresponds to the 50 MeV bins we want for comparison to GENIE XS spline files
+upper_hist_limit = 10              # largest bin [GeV] -> default = 10, corresponds to maximum value in the GENIE XS spline files
 
 # currently, default in code for flux units set to (keep commented, won't work up here):
 # scaling_factor = 1 / total_POT / surface_area    # proper unit conversion for flux
                                                    # default: v / 50MeV / POT / cm^2
+
 # this can be changed in the script (you'll also want to change the label below to reflect the correct units)
 hist_y_label = r'$\Phi (\nu)$' + ' / 50MeV / cm' + r'$^2$' + ' / POT'   # default: r'$\Phi (\nu)$' + ' / 50MeV / cm' + r'$^2$' + ' / POT'
 
@@ -60,16 +64,18 @@ file_names = [os.path.join(gsimple_directory, f) for f in os.listdir(gsimple_dir
 if Full_Volume:
     tank_radius = 1.524  # [m]
     tank_height = 1.98   # [m] (half-height)
+    volume_str = f'Full Detector volume selected: {tank_radius}m radius, {tank_height}m half-height'
 
 # -------- FV -----------
 else:
     tank_radius = FV_radius
     tank_height = FV_half_z
+    volume_str = f'FV selected: {tank_radius}m radius, {tank_height}m half-height'
     
 p_c = np.array([0, -0.1446, 1.681])  # center position for simulated geometry [m]
 surface_area = (2 * tank_radius * 2 * tank_height) * 1e4  # cyclinder cross section = rectangle, convert to cm^2
 
-print(f'\nVolume selected: {tank_radius}m radius, {tank_height}m half-height\n')
+print('\n' + volume_str + '\n')
 
 # ----------------------------------------------------- #
 
@@ -262,29 +268,88 @@ plt.close()
 # ----------------------------------------------------- #
 
 # output flux to ROOT
-print(root_file)
-with uproot.recreate(rootfile_name) as file:
-    file["numu_cv"] = (counts_nu_mu, binning)
-    file["numubar_cv"] = (counts_nu_mu_bar, binning)
-    file["nue_cv"] = (counts_nu_e, binning)
-    file["nuebar_cv"] = (counts_nu_e_bar, binning)
+if generate_rootfile:
+    with uproot.recreate(rootfile_name) as file:
+        file["numu_cv"] = (counts_nu_mu, binning)
+        file["numubar_cv"] = (counts_nu_mu_bar, binning)
+        file["nue_cv"] = (counts_nu_e, binning)
+        file["nuebar_cv"] = (counts_nu_e_bar, binning)
 
 # ----------------------------------------------------- #
 
-print('\n')
-print('****************************************')
-print(total_count, 'total neutrinos produced')
-print(passed, 'neutrinos that hit the FV (', round(100*passed/total_count,3), '% )')
-print(round(total_POT/(1e6),4), 'e6 POT')
-print('\n')
-print('Flux breakdown')
-print('----------------------------------------------------------------------')
-print('muon neutrino:         ', str(round(100*len(nu_mu_energy)/passed,2)), '%, <E> =', avg_nu_mu, 'MeV, E_med =', med_nu_mu, 'MeV')
-print('muon antineutrino:     ', str(round(100*len(nu_mu_bar_energy)/passed,2)), '%,  <E> =', avg_nu_mu_bar, 'MeV, E_med =', med_nu_mu_bar, 'MeV')
-print('electron neutrino:     ', str(round(100*len(nu_e_energy)/passed,2)), '%,  <E> =', avg_nu_e, 'MeV, E_med =', med_nu_e, 'MeV')
-print('electron antineutrino: ', str(round(100*len(nu_e_bar_energy)/passed,2)), '%,  <E> =', avg_nu_e_bar, 'MeV, E_med =', med_nu_e_bar, 'MeV')
-print('**********************************************************************')
-print('Neutrino Avg Energy      =', nu_avg_energy, 'MeV,  Median Energy = ', nu_med_energy, 'MeV')
-print('Anti-Neutrino Avg Energy =', nu_bar_avg_energy, 'MeV,  Median Energy = ', nu_bar_med_energy, 'MeV')
+# calculate neutrino fluence per cm^2 per POT
+fluence_numu     = np.sum(counts_nu_mu)
+fluence_numu_bar = np.sum(counts_nu_mu_bar)
+fluence_nue      = np.sum(counts_nu_e)
+fluence_nue_bar  = np.sum(counts_nu_e_bar)
+
+fluence_nu = fluence_numu + fluence_nue
+fluence_nubar = fluence_numu_bar + fluence_nue_bar
+
+
+##### print statistics #####
+
+# Summary of Neutrino Ray Propagation
+summary = {
+    "Corresponding POT": [round(total_POT, 4)],
+    "Total neutrinos produced": [total_count],
+    "Neutrinos hitting FV": [passed],
+    "Fraction passing (%)": [round(100*passed/total_count, 3)],
+}
+summary_df = pd.DataFrame(summary)
+
+
+# Flux Breakdown by Flavor
+flux_data = {
+    "Flavor": ["νμ", "ν̅μ", "νe", "ν̅e"],
+    "Fraction (%)": [
+        round(100*len(nu_mu_energy)/passed, 2),
+        round(100*len(nu_mu_bar_energy)/passed, 2),
+        round(100*len(nu_e_energy)/passed, 2),
+        round(100*len(nu_e_bar_energy)/passed, 2),
+    ],
+    "⟨E⟩ [MeV]": [
+        avg_nu_mu, avg_nu_mu_bar, avg_nu_e, avg_nu_e_bar
+    ],
+    "Median E [MeV]": [
+        med_nu_mu, med_nu_mu_bar, med_nu_e, med_nu_e_bar
+    ],
+    "Fluence [cm^2/POT]": [
+        fluence_numu, fluence_numu_bar, fluence_nue, fluence_nue_bar
+    ]
+}
+flux_df = pd.DataFrame(flux_data)
+
+
+# Total Neutrino vs Antineutrino Flux Breakdown
+overall_energy = {
+    "Type": ["Neutrino", "Antineutrino"],
+    "⟨E⟩ [MeV]": [nu_avg_energy, nu_bar_avg_energy],
+    "Median E [MeV]": [nu_med_energy, nu_bar_med_energy],
+    "Fluence [cm^2/POT]": [fluence_nu, fluence_nubar],
+}
+overall_energy_df = pd.DataFrame(overall_energy)
+
+
+print('\n\n' + volume_str)
+print("\n*** Summary of Neutrino Ray Propagation ***")
+print(summary_df.to_string(index=False))
+print("\n*** Flux Breakdown by Flavor ***")
+print(flux_df.to_string(index=False))
+print("\n*** Total Neutrino vs Antineutrino Flux Breakdown ***")
+print(overall_energy_df.to_string(index=False))
+
+
+if generate_summary_txt:
+    with open(txt_name, "w") as f:
+        f.write(volume_str + '\n')
+        f.write('\n')
+        f.write("*** Summary ***\n")
+        f.write(summary_df.to_string(index=False))
+        f.write("\n\n*** Flux Breakdown ***\n")
+        f.write(flux_df.to_string(index=False))
+        f.write("\n\n*** Overall Energies ***\n")
+        f.write(overall_energy_df.to_string(index=False))
+
 
 print('\n\ndone\n')
