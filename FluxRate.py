@@ -344,11 +344,11 @@ if generate_summary_txt:
     with open(txt_name, "w") as f:
         f.write(volume_str + '\n')
         f.write('\n')
-        f.write("*** Summary ***\n")
+        f.write("*** Summary of Neutrino Ray Propagation ***\n")
         f.write(summary_df.to_string(index=False))
-        f.write("\n\n*** Flux Breakdown ***\n")
+        f.write("\n\n*** Flux Breakdown by Flavor ***\n")
         f.write(flux_df.to_string(index=False))
-        f.write("\n\n*** Overall Energies ***\n")
+        f.write("\n\n*** Total Neutrino vs Antineutrino Flux Breakdown ***\n")
         f.write(overall_energy_df.to_string(index=False))
 
 
