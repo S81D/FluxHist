@@ -7,6 +7,8 @@ Note the spline files are in energy bins of 50 MeV. Therefore the default histog
 
 Some example plots are given with varying units.
 
+Additional information can be found in `docs` and here: https://annie-docdb.fnal.gov/cgi-bin/sso/ShowDocument?docid=6492
+
 ### Configuration
 (Modify in `FluxRates.py` header)
 ```
