@@ -5,9 +5,9 @@ Will output Flux histogram plot as well as a root file with histograms for each 
 
 Note the spline files are in energy bins of 50 MeV. Therefore the default histogram binning here is recommended for 50 MeV. Modify the configurations (start of the code) accordingly. The default units are [neutrinos / 50 MeV / cm^2 / POT]; these units can be modified within the code.
 
-Some example plots are given with varying units.
+Some example plots are given with varying units in `docs/`, including additional information. See https://annie-docdb.fnal.gov/cgi-bin/sso/ShowDocument?docid=6492 for more details.
 
-Additional information can be found in `docs` and here: https://annie-docdb.fnal.gov/cgi-bin/sso/ShowDocument?docid=6492
+Output rootfile included `ANNIE_FLUX_full_detector.root`, which is the calculated flux (numu, numubar, nue, nuebar) for the entire detector volume.
 
 ### Configuration
 (Modify in `FluxRates.py` header)
