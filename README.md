@@ -39,4 +39,4 @@ gsimple_directory = 'filepath/'  # path for the gsimple flux files
 ### Additional Information
 * ANNIE flux files can be found here: `/pnfs/annie/persistent/flux/calculated_annie_flux_histograms/`
 * `utils/`contains additional scripts (not needed for the primary script.
-    - `neutrino_fluence.py` will calculate the average flux per cm^2. Reads from the output root file. Usage: `python3 neutrino_fluence.py`
+    - `neutrino_fluence.py` will calculate the average flux per cm^2. Reads from the output root file. Usage: `python3 neutrino_fluence.py [-h] [-i INPUT] {numu,nue,numubar,nuebar}`
