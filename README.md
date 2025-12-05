@@ -35,3 +35,8 @@ gsimple_directory = 'filepath/'  # path for the gsimple flux files
 1. `root` file with the flux histograms per flavor
 2. Printed flux statistics
 3. Output txt file with flux statistics
+
+### Additional Information
+* ANNIE flux files can be found here: `/pnfs/annie/persistent/flux/calculated_annie_flux_histograms/`
+* `utils/`contains additional scripts (not needed for the primary script.
+    - `neutrino_fluence.py` will calculate the average flux per cm^2. Reads from the output root file. Usage: `python3 neutrino_fluence.py`
